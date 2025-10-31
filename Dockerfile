@@ -30,9 +30,12 @@ ENV PUPPETEER_SKIP_DOWNLOAD=$PUPPETEER_SKIP_DOWNLOAD_ARG
 RUN npm config set fetch-retry-maxtimeout 120000 && \
     npm config set registry $NPM_REGISTRY_URL --location=global
 
-# Copy package files first for better layer caching
-# This layer will be reused if package files haven't changed
-COPY package.json package-lock.json ./
+# Copy package files and required scripts for npm install
+# This layer will be reused if these files haven't changed
+COPY package.json package-lock.json version.js ./
+
+# Create directory structure needed by postinstall script (version.js)
+RUN mkdir -p src/environments
 
 # Install dependencies with cache mount for faster builds
 # The cache mount persists between builds, dramatically speeding up npm ci

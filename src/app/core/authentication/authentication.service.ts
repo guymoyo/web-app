@@ -95,8 +95,7 @@ export class AuthenticationService {
       officeName: '',
       roles: [],
       permissions: [],
-      isSelfServiceUser: false,
-      clients: []
+      shouldRenewPassword: false
     };
 
     // Store minimal credentials to satisfy existing code

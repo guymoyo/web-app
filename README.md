@@ -1,8 +1,21 @@
 # Mifos X Web App ![build](https://github.com/openMF/web-app/actions/workflows/build.yml/badge.svg)
 
+## Important Notice - Authentication Changes
+
+**This fork has been modified to use nginx + oauth2-proxy + Keycloak for authentication.**
+
+- Frontend authentication has been disabled
+- All authentication is handled at the infrastructure layer (nginx/oauth2-proxy)
+- Docker images are published to GitHub Container Registry: `ghcr.io/guymoyo/web-app`
+- Designed for deployment with ArgoCD to k3s
+
+**📖 For detailed authentication setup and deployment instructions, see [AUTHENTICATION.md](./AUTHENTICATION.md)**
+
+---
+
 ## Overview
 
-Mifos X Web App is a modern single-page application (SPA) built on top of the Mifos X platform for financial inclusion. It serves as the default web interface for the Mifos user community.
+Mifos X Web App is a modern single-page application (SPA) built on top of the Mifos X platform for financial inclusion. This fork serves as a frontend application designed to work with nginx + oauth2-proxy + Keycloak authentication.
 
 **Technologies Used:**
 

@@ -55,8 +55,9 @@ export class AuthenticationService {
   private twoFactorAuthenticationTokenStorageKey = 'mifosXTwoFactorAuthenticationToken';
 
   /**
-   * Initializes the type of storage and authorization headers depending on whether
-   * credentials are presently in storage or not.
+   * Initializes the authentication service.
+   * With nginx/oauth2-proxy authentication, the user is always considered authenticated
+   * since authentication happens at the proxy layer before reaching this app.
    * @param {HttpClient} http Http Client to send requests.
    * @param {AlertService} alertService Alert Service.
    * @param {AuthenticationInterceptor} authenticationInterceptor Authentication Interceptor.
@@ -66,30 +67,40 @@ export class AuthenticationService {
     private alertService: AlertService,
     private authenticationInterceptor: AuthenticationInterceptor
   ) {
-    this.userLoggedIn = false;
+    // Authentication is handled by nginx + oauth2-proxy
+    // User is always authenticated when they reach this application
+    this.userLoggedIn = true;
     this.rememberMe = false;
     this.storage = sessionStorage;
-    const savedCredentials = JSON.parse(
-      sessionStorage.getItem(this.credentialsStorageKey) || localStorage.getItem(this.credentialsStorageKey)
-    );
-    if (savedCredentials) {
-      if (savedCredentials.rememberMe) {
-        this.rememberMe = true;
-        this.storage = localStorage;
-      }
-      const twoFactorAccessToken = JSON.parse(this.storage.getItem(this.twoFactorAuthenticationTokenStorageKey));
-      if (environment.oauth.enabled) {
-        this.refreshOAuthAccessToken();
-      } else {
-        authenticationInterceptor.setAuthorizationToken(savedCredentials.base64EncodedAuthenticationKey);
-      }
-      if (twoFactorAccessToken) {
-        authenticationInterceptor.setTwoFactorAccessToken(twoFactorAccessToken.token);
-      }
-      // Emit the correct initial state
-      this.userLoggedIn = true;
-      this.userLoggedIn$.next(true);
-    }
+    this.userLoggedIn$.next(true);
+
+    // Initialize mock credentials from headers if needed
+    this.initializeFromProxyHeaders();
+  }
+
+  /**
+   * Initialize user credentials from nginx/oauth2-proxy headers.
+   * These headers are set by oauth2-proxy after successful authentication.
+   */
+  private initializeFromProxyHeaders() {
+    // Note: We cannot directly read HTTP headers in the constructor
+    // Headers will be available in HTTP requests via the interceptor
+    // This method is a placeholder for any client-side initialization
+    const mockCredentials: Credentials = {
+      username: 'proxy-authenticated-user',
+      userId: 0,
+      base64EncodedAuthenticationKey: '',
+      authenticated: true,
+      officeId: 0,
+      officeName: '',
+      roles: [],
+      permissions: [],
+      isSelfServiceUser: false,
+      clients: []
+    };
+
+    // Store minimal credentials to satisfy existing code
+    this.storage.setItem(this.credentialsStorageKey, JSON.stringify(mockCredentials));
   }
 
   /**
@@ -257,24 +268,19 @@ export class AuthenticationService {
   }
 
   /**
-   * Logs out the authenticated user and clears the credentials from storage.
+   * Logs out the user by redirecting to oauth2-proxy logout endpoint.
+   * This will clear the oauth2-proxy session and redirect to Keycloak logout.
    * @returns {Observable<boolean>} True if the user was logged out successfully.
    */
   logout(): Observable<boolean> {
-    const twoFactorToken = JSON.parse(this.storage.getItem(this.twoFactorAuthenticationTokenStorageKey));
-    if (twoFactorToken) {
-      this.http.post('/twofactor/invalidate', { token: twoFactorToken.token }).subscribe();
-      this.authenticationInterceptor.removeTwoFactorAuthorization();
-    }
-    const oAuthRefreshToken = JSON.parse(this.storage.getItem(this.oAuthTokenDetailsStorageKey));
-    if (oAuthRefreshToken) {
-      this.logoutAuthSession();
-    }
-    this.authenticationInterceptor.removeAuthorization();
+    // Clear any local storage
     this.setCredentials();
     this.resetDialog();
-    this.userLoggedIn = false;
-    this.userLoggedIn$.next(false); // ✅ notify observers
+
+    // Redirect to oauth2-proxy logout endpoint
+    // This will clear the oauth2-proxy session and redirect to Keycloak logout
+    window.location.href = '/oauth2/sign_out';
+
     return of(true);
   }
 
@@ -292,14 +298,13 @@ export class AuthenticationService {
 
   /**
    * Checks if the user is authenticated.
-   * @returns {boolean} True if the user is authenticated.
+   * Always returns true since authentication is handled by nginx + oauth2-proxy.
+   * @returns {boolean} Always true - users cannot reach this app without authentication.
    */
   isAuthenticated(): boolean {
-    return !!(
-      JSON.parse(
-        sessionStorage.getItem(this.credentialsStorageKey) || localStorage.getItem(this.credentialsStorageKey)
-      ) && this.twoFactorAccessTokenIsValid()
-    );
+    // Authentication is handled by nginx + oauth2-proxy layer
+    // All users reaching this application are pre-authenticated
+    return true;
   }
 
   /**

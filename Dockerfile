@@ -41,9 +41,25 @@ RUN sh -c "ng build --output-path=/dist $BUILD_ENVIRONMENT_OPTIONS"
 ###############
 FROM $NGINX_IMAGE
 
+# Copy built application
 COPY --from=builder /dist/browser /usr/share/nginx/html
 
+# Copy custom nginx configuration
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# Remove default nginx configuration
+RUN rm -f /etc/nginx/conf.d/default.conf.default
+
+# Add labels for better container metadata
+LABEL maintainer="guymoyo"
+LABEL description="Fineract Web App - Frontend application for Apache Fineract"
+LABEL org.opencontainers.image.source="https://github.com/guymoyo/web-app"
+
 EXPOSE 80
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost/health || exit 1
 
 # When the container starts, replace the env.js with values from environment variables
 CMD ["/bin/sh",  "-c",  "envsubst < /usr/share/nginx/html/assets/env.template.js > /usr/share/nginx/html/assets/env.js && exec nginx -g 'daemon off;'"]

@@ -24,10 +24,15 @@ export const environment = {
   apiProvider: loadedEnv['apiProvider'] || '/fineract-provider/api',
   apiVersion: loadedEnv['apiVersion'] || '/v1',
   serverUrl: '',
+  /** OAuth is disabled - authentication is handled by nginx + oauth2-proxy + Keycloak */
   oauth: {
-    enabled: loadedEnv['oauthServerEnabled'] || false, // For connecting to Mifos X using OAuth2 Authentication change the value to true
-    serverUrl: loadedEnv['oauthServerUrl'] || '',
-    appId: loadedEnv['oauthAppId'] || ''
+    enabled: false, // Authentication is handled by nginx + oauth2-proxy
+    serverUrl: '',
+    appId: ''
+  },
+  /** OAuth2-proxy configuration */
+  oauth2Proxy: {
+    logoutUrl: loadedEnv['oauth2ProxyLogoutUrl'] || '/oauth2/sign_out' // URL to logout from oauth2-proxy
   },
   /** Feature flag for Remember Me functionality */
   enableRememberMe: false,
@@ -64,12 +69,13 @@ export const environment = {
 
   minPasswordLength: loadedEnv['minPasswordLength'] || 12,
 
+  /** OIDC is disabled - authentication is handled by nginx + oauth2-proxy + Keycloak */
   OIDC: {
-    oidcServerEnabled: window['env']['oidcServerEnabled'] || false,
-    oidcBaseUrl: window['env']['oidcBaseUrl'] || '',
-    oidcClientId: window['env']['oidcClientId'] || '',
-    oidcApiUrl: window['env']['oidcApiUrl'] || '',
-    oidcFrontUrl: window['env']['oidcFrontUrl'] || ''
+    oidcServerEnabled: false, // Authentication is handled by nginx + oauth2-proxy
+    oidcBaseUrl: '',
+    oidcClientId: '',
+    oidcApiUrl: '',
+    oidcFrontUrl: ''
   }
 };
 

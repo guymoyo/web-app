@@ -24,18 +24,15 @@ export class AuthenticationGuard {
   ) {}
 
   /**
-   * Ensures route access is authorized only when user is authenticated, otherwise redirects to login.
+   * Always allows route access since authentication is handled by nginx + oauth2-proxy.
+   * Users are authenticated at the nginx/oauth2-proxy layer before reaching the Angular app.
    *
-   * @returns {boolean} True if user is authenticated.
+   * @returns {boolean} Always returns true.
    */
   canActivate(): boolean {
-    if (this.authenticationService.isAuthenticated()) {
-      return true;
-    }
-
-    log.debug('User not authenticated, redirecting to login...');
-    this.authenticationService.logout();
-    this.router.navigate(['/login'], { replaceUrl: true });
-    return false;
+    // Authentication is handled by nginx + oauth2-proxy + Keycloak
+    // All requests reaching this app are pre-authenticated
+    log.debug('Route access granted - authentication handled by nginx/oauth2-proxy');
+    return true;
   }
 }

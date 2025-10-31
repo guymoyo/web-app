@@ -24,6 +24,8 @@ const twoFactorAccessTokenHeader = 'Fineract-Platform-TFA-Token';
 
 /**
  * Http Request interceptor to set the request headers.
+ * Note: Authorization is handled by nginx + oauth2-proxy, so no auth headers are added here.
+ * nginx will forward the authentication to the Fineract backend.
  */
 @Injectable()
 export class AuthenticationInterceptor implements HttpInterceptor {
@@ -31,11 +33,13 @@ export class AuthenticationInterceptor implements HttpInterceptor {
 
   /**
    * Intercepts a Http request and sets the request headers.
+   * Only sets tenant ID header - authentication is handled by nginx/oauth2-proxy.
    */
   intercept(request: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
     if (this.settingsService.tenantIdentifier) {
       httpOptions.headers['Fineract-Platform-TenantId'] = this.settingsService.tenantIdentifier;
     }
+    // Note: We don't add Authorization header here - nginx/oauth2-proxy handles authentication
     request = request.clone({ setHeaders: httpOptions.headers });
     return next.handle(request);
   }

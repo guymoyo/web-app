@@ -14,26 +14,36 @@ ARG PUPPETEER_SKIP_DOWNLOAD_ARG
 # Set the environment variable to increase Node.js memory limit
 ENV NODE_OPTIONS="--max-old-space-size=4096"
 
+# Install git (required for some npm packages)
 RUN apk add --no-cache git
 
 WORKDIR /usr/src/app
 
 ENV PATH=/usr/src/app/node_modules/.bin:$PATH
 
-# Export Puppeteer env variables for installation with non-default registry.
+# Export Puppeteer env variables for installation with non-default registry
 ENV PUPPETEER_DOWNLOAD_HOST=$PUPPETEER_DOWNLOAD_HOST_ARG
 ENV PUPPETEER_CHROMIUM_REVISION=$PUPPETEER_CHROMIUM_REVISION_ARG
 ENV PUPPETEER_SKIP_DOWNLOAD=$PUPPETEER_SKIP_DOWNLOAD_ARG
 
-COPY ./ /usr/src/app/
+# Configure npm before installing dependencies
+RUN npm config set fetch-retry-maxtimeout 120000 && \
+    npm config set registry $NPM_REGISTRY_URL --location=global
 
-RUN npm cache clear --force
+# Copy package files first for better layer caching
+# This layer will be reused if package files haven't changed
+COPY package.json package-lock.json ./
 
-RUN npm config set fetch-retry-maxtimeout 120000
-RUN npm config set registry $NPM_REGISTRY_URL --location=global
+# Install dependencies with cache mount for faster builds
+# The cache mount persists between builds, dramatically speeding up npm ci
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --prefer-offline --no-audit
 
-RUN npm ci
+# Copy the rest of the application code
+# This is done after npm ci so code changes don't invalidate the dependency layer
+COPY . .
 
+# Build the Angular application
 RUN sh -c "ng build --output-path=/dist $BUILD_ENVIRONMENT_OPTIONS"
 
 ###############

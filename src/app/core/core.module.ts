@@ -1,5 +1,5 @@
 /** Angular Imports */
-import { NgModule, Optional, SkipSelf, Injector } from '@angular/core';
+import { NgModule, Optional, SkipSelf, Injector, APP_INITIALIZER } from '@angular/core';
 import {
   HTTP_INTERCEPTORS,
   HttpClient,
@@ -42,6 +42,28 @@ import { BreadcrumbComponent } from './shell/breadcrumb/breadcrumb.component';
 import { ContentComponent } from './shell/content/content.component';
 
 /**
+ * Factory function to initialize user details from Fineract backend.
+ * This ensures user permissions are loaded before the app starts.
+ * @param authService Authentication service
+ * @returns Promise that resolves when user details are fetched
+ */
+export function initializeUserDetails(authService: AuthenticationService): () => Promise<any> {
+  return () => new Promise((resolve) => {
+    authService.fetchUserDetails().subscribe({
+      next: () => {
+        console.log('User details fetched successfully');
+        resolve(true);
+      },
+      error: (err) => {
+        console.error('Failed to fetch user details:', err);
+        // Still resolve to allow app to load, but user will have limited permissions
+        resolve(true);
+      }
+    });
+  });
+}
+
+/**
  * Core Module
  *
  * Main app shell components and singleton services should be here.
@@ -65,6 +87,12 @@ import { ContentComponent } from './shell/content/content.component';
     AuthenticationService,
     AuthenticationGuard,
     AuthenticationInterceptor,
+    {
+      provide: APP_INITIALIZER,
+      useFactory: initializeUserDetails,
+      deps: [AuthenticationService],
+      multi: true
+    },
     {
       provide: HTTP_INTERCEPTORS,
       useClass: AuthenticationInterceptor,

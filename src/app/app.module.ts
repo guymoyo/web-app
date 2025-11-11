@@ -53,10 +53,7 @@ import {
 } from '@ngx-translate/core';
 import { TranslateHttpLoader } from '@ngx-translate/http-loader';
 
-import { AuthenticationInterceptor as TokenInterceptor } from './core/authentication/authentication.interceptor';
-import { TokenInterceptor as ZitadelTokenInterceptor } from './zitadel/token.interceptor';
 import { AuthService } from './zitadel/auth.service';
-import { environment } from '../environments/environment';
 import { CallbackComponent } from './zitadel/callback/callback.component';
 
 export class CustomMissingTranslationHandler implements MissingTranslationHandler {
@@ -125,12 +122,9 @@ export function HttpLoaderFactory(http: HttpClient) {
   ],
   providers: [
     DatePipe,
-    AuthService,
-    {
-      provide: HTTP_INTERCEPTORS,
-      useClass: !environment.OIDC.oidcServerEnabled ? TokenInterceptor : ZitadelTokenInterceptor,
-      multi: true
-    }
+    AuthService
+    // Note: AuthenticationInterceptor is registered in CoreModule
+    // Removed duplicate registration that was causing headers to be set twice
   ]
 })
 export class AppModule {}

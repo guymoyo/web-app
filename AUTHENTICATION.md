@@ -2,15 +2,55 @@
 
 This application has been configured to use **nginx + oauth2-proxy + Keycloak** for authentication instead of the built-in authentication system.
 
-## Overview
+## Architecture Overview
 
-Authentication is handled at the infrastructure layer before requests reach this Angular application:
+This application uses a **dual-nginx architecture** where authentication is handled at the Kubernetes Ingress layer, and this container's nginx only serves static files:
 
 ```
-User → Keycloak → oauth2-proxy → nginx → Angular App
+┌─────────────────────────────────────────────────────────────────────────┐
+│                      Browser (User)                                      │
+└─────────────────────────────────────────────────────────────────────────┘
                                     ↓
-                              Fineract API
+┌─────────────────────────────────────────────────────────────────────────┐
+│              Kubernetes Ingress NGINX (Authentication Layer)             │
+│  - Validates all requests via OAuth2-Proxy                               │
+│  - Routes /fineract-provider → Fineract API (HTTPS:8443)                │
+│  - Routes / → Web-App nginx container (HTTP:80)                          │
+│  - Adds Authorization: Bearer <token> header                             │
+│  - Forwards X-Auth-Request-User, X-Auth-Request-Email, etc.              │
+└─────────────────────────────────────────────────────────────────────────┘
+                    ↓                                   ↓
+        ┌───────────────────────┐       ┌──────────────────────────────────┐
+        │  Fineract API         │       │  Web-App nginx (this container)  │
+        │  (Port 8443 HTTPS)    │       │  (Port 80 HTTP)                  │
+        │  - Business logic     │       │  - Serves static Angular files   │
+        │  - Validates tokens   │       │  - SPA routing (fallback to      │
+        │                       │       │    index.html)                   │
+        └───────────────────────┘       │  - Does NOT proxy API requests   │
+                                        └──────────────────────────────────┘
 ```
+
+### Key Points:
+
+1. **Two Separate nginx Instances:**
+   - **Ingress NGINX** (Kubernetes): Handles authentication, routing, and API proxying
+   - **Container NGINX** (this app): Only serves the Angular static files
+
+2. **API Routing:**
+   - API calls from the browser go **directly to Ingress NGINX**, not through this container
+   - This container's nginx does **NOT** proxy API requests
+   - The `location /fineract-provider/` in nginx.conf returns 404 (should never be reached)
+
+3. **Authentication Flow:**
+   - All requests (API and frontend) are authenticated at the **Ingress layer**
+   - OAuth2-Proxy validates sessions with Keycloak
+   - Headers are added by Ingress NGINX before routing to backends
+   - This Angular app assumes all users are pre-authenticated
+
+4. **Separate Ingress Resources:**
+   - `fineract-oauth2-protected`: Routes `/fineract-provider` to Fineract API (HTTPS backend)
+   - `fineract-web-app-protected`: Routes `/` to this web-app (HTTP backend)
+   - Split is necessary because backends use different protocols
 
 ## Changes Made
 
@@ -26,21 +66,19 @@ The following changes were made to disable frontend authentication:
 - **AuthenticationInterceptor** (`src/app/core/authentication/authentication.interceptor.ts`): No longer adds Authorization headers (nginx handles this)
 - **Environment configs**: OAuth and OIDC flags set to `false`
 
-### 2. Nginx Configuration
+### 2. Container Nginx Configuration
 
 A custom nginx configuration (`nginx.conf`) has been created that:
 
-- Serves the Angular SPA
-- Handles SPA routing (fallback to index.html)
-- Preserves oauth2-proxy headers:
-  - `X-Auth-Request-User`
-  - `X-Auth-Request-Email`
-  - `X-Auth-Request-Access-Token`
-  - `X-Forwarded-User`
-  - `X-Forwarded-Email`
+- **Serves the Angular SPA** (static files only)
+- **Handles SPA routing** (fallback to index.html for client-side routes)
+- **Does NOT handle API proxying** (API requests are routed by Ingress NGINX)
+- **Does NOT add authentication headers** (headers are added by Ingress NGINX)
 - Provides health check endpoint at `/health`
 - Optimizes static asset caching
 - Enables gzip compression
+
+**Important:** This nginx configuration is for the **container only**. The actual authentication and API routing is handled by the **Kubernetes Ingress NGINX** at `/Users/guymoyo/dev/fineract-gitops/apps/ingress/base/ingress.yaml`
 
 ### 3. Docker Configuration
 

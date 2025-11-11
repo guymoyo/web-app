@@ -45,38 +45,11 @@ export class AuthenticationInterceptor implements HttpInterceptor {
   }
 
   /**
-   * Sets the basic/oauth authorization header depending on the configuration.
-   * @param {string} authenticationKey Authentication key.
-   */
-  setAuthorizationToken(authenticationKey: string) {
-    if (environment.oauth.enabled) {
-      httpOptions.headers[authorizationHeader] = `Bearer ${authenticationKey}`;
-    } else {
-      httpOptions.headers[authorizationHeader] = `Basic ${authenticationKey}`;
-    }
-  }
-
-  /**
    * Sets the two factor access token header.
    * @param {string} twoFactorAccessToken Two factor access token.
    */
   setTwoFactorAccessToken(twoFactorAccessToken: string) {
     httpOptions.headers[twoFactorAccessTokenHeader] = twoFactorAccessToken;
-  }
-
-  /**
-   * Removes the authorization header.
-   */
-  removeAuthorization() {
-    delete httpOptions.headers[authorizationHeader];
-  }
-
-  /**
-   * Removes the authorization header.
-   */
-  removeAuthorizationTenant() {
-    delete httpOptions.headers[authorizationHeader];
-    delete httpOptions.headers[authorizationTenantHeader];
   }
 
   /**

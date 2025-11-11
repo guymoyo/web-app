@@ -80,14 +80,19 @@ export class AuthenticationService {
 
   /**
    * Initialize user credentials from nginx/oauth2-proxy headers.
-   * These headers are set by oauth2-proxy after successful authentication.
+   * Since authentication is handled by oauth2-proxy, we need to fetch
+   * the real user details from Fineract to get roles and permissions.
    */
   private initializeFromProxyHeaders() {
-    // Note: We cannot directly read HTTP headers in the constructor
-    // Headers will be available in HTTP requests via the interceptor
-    // This method is a placeholder for any client-side initialization
-    const mockCredentials: Credentials = {
-      username: 'proxy-authenticated-user',
+    // Check if we already have credentials in storage
+    const existingCredentials = this.storage.getItem(this.credentialsStorageKey);
+    if (existingCredentials) {
+      return; // Already initialized
+    }
+
+    // Store temporary credentials while we fetch the real ones
+    const tempCredentials: Credentials = {
+      username: 'loading...',
       userId: 0,
       base64EncodedAuthenticationKey: '',
       authenticated: true,
@@ -97,9 +102,24 @@ export class AuthenticationService {
       permissions: [],
       shouldRenewPassword: false
     };
+    this.storage.setItem(this.credentialsStorageKey, JSON.stringify(tempCredentials));
+  }
 
-    // Store minimal credentials to satisfy existing code
-    this.storage.setItem(this.credentialsStorageKey, JSON.stringify(mockCredentials));
+  /**
+   * Fetch real user details from Fineract backend.
+   * This should be called after the app initializes to get actual user permissions.
+   * @returns {Observable<Credentials>} Observable of user credentials
+   */
+  public fetchUserDetails(): Observable<Credentials> {
+    return this.http.get<Credentials>(`${environment.serverUrl}/userdetails`).pipe(
+      map((credentials: Credentials) => {
+        // Store the real credentials with permissions
+        this.storage.setItem(this.credentialsStorageKey, JSON.stringify(credentials));
+        this.userLoggedIn = true;
+        this.userLoggedIn$.next(true);
+        return credentials;
+      })
+    );
   }
 
   /**
@@ -175,6 +195,7 @@ export class AuthenticationService {
 
   /**
    * Refreshes the oauth2 authorization token.
+   * Note: With oauth2-proxy, token refresh is handled by the proxy.
    */
   private refreshOAuthAccessToken() {
     var oAuthRefreshToken = JSON.parse(this.storage.getItem(this.oAuthTokenDetailsStorageKey));
@@ -182,7 +203,6 @@ export class AuthenticationService {
       return;
     }
     oAuthRefreshToken = JSON.parse(this.storage.getItem(this.oAuthTokenDetailsStorageKey)).refresh_token;
-    this.authenticationInterceptor.removeAuthorization();
     const credentials = JSON.parse(this.storage.getItem(this.credentialsStorageKey));
     let httpParams = new HttpParams();
     httpParams = httpParams.set('username', credentials.username);
@@ -195,7 +215,6 @@ export class AuthenticationService {
       .post(`${environment.oauth.serverUrl}/token`, httpParams.toString(), { headers: headers })
       .subscribe((tokenResponse: OAuth2Token) => {
         this.storage.setItem(this.oAuthTokenDetailsStorageKey, JSON.stringify(tokenResponse));
-        this.authenticationInterceptor.setAuthorizationToken(tokenResponse.access_token);
         this.refreshTokenOnExpiry(tokenResponse.expires_in);
         const credentials = JSON.parse(this.storage.getItem(this.credentialsStorageKey));
         credentials.accessToken = tokenResponse.access_token;
@@ -219,11 +238,8 @@ export class AuthenticationService {
     // Ensure the rememberMe value is preserved in credentials
     credentials.rememberMe = this.rememberMe;
 
-    if (environment.oauth.enabled) {
-      this.authenticationInterceptor.setAuthorizationToken(credentials.accessToken);
-    } else {
-      this.authenticationInterceptor.setAuthorizationToken(credentials.base64EncodedAuthenticationKey);
-    }
+    // Note: Authorization headers are NOT set here when using oauth2-proxy
+    // nginx/oauth2-proxy handles authentication and forwards the Bearer token
     if (credentials.isTwoFactorAuthenticationRequired) {
       this.credentials = credentials;
       this.alertService.alert({
@@ -250,11 +266,11 @@ export class AuthenticationService {
 
   /**
    * Logout ongoing Oauth2 session.
+   * Note: With oauth2-proxy, logout is handled by redirecting to /oauth2/sign_out
    */
   private logoutAuthSession() {
     const oAuthRefreshToken = JSON.parse(this.storage.getItem(this.oAuthTokenDetailsStorageKey)).refresh_token;
     const credentials = JSON.parse(this.storage.getItem(this.credentialsStorageKey));
-    this.authenticationInterceptor.removeAuthorizationTenant();
     let httpParams = new HttpParams();
     httpParams = httpParams.set('username', credentials.username);
     httpParams = httpParams.set('client_id', `${environment.oauth.appId}`);
@@ -429,7 +445,6 @@ export class AuthenticationService {
     return this.http.put(`/users/${this.credentials.userId}`, passwordDetails).pipe(
       map(() => {
         this.alertService.alert({ type: 'Password Reset Success', message: `Your password was sucessfully reset!` });
-        this.authenticationInterceptor.removeAuthorization();
         this.authenticationInterceptor.removeTwoFactorAuthorization();
         const loginContext: LoginContext = {
           username: this.credentials.username,

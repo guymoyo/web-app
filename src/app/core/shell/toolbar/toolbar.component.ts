@@ -23,6 +23,7 @@ import { map } from 'rxjs/operators';
 
 /** Custom Services */
 import { AuthenticationService } from '../../authentication/authentication.service';
+import { SessionMonitorService } from '../../authentication/session-monitor.service';
 import { PopoverService } from '../../../configuration-wizard/popover/popover.service';
 import { ConfigurationWizardService } from '../../../configuration-wizard/configuration-wizard.service';
 
@@ -96,6 +97,7 @@ export class ToolbarComponent implements OnInit, AfterViewInit, AfterContentChec
    * @param {BreakpointObserver} breakpointObserver Breakpoint observer to detect screen size.
    * @param {Router} router Router for navigation.
    * @param {AuthenticationService} authenticationService Authentication service.
+   * @param {SessionMonitorService} sessionMonitorService Session monitor service.
    * @param {MatDialog} dialog MatDialog.
    * @param {ConfigurationWizardService} configurationWizardService ConfigurationWizard Service.
    * @param {PopoverService} popoverService PopoverService.
@@ -104,6 +106,7 @@ export class ToolbarComponent implements OnInit, AfterViewInit, AfterContentChec
     private breakpointObserver: BreakpointObserver,
     private router: Router,
     private authenticationService: AuthenticationService,
+    private sessionMonitorService: SessionMonitorService,
     private popoverService: PopoverService,
     private configurationWizardService: ConfigurationWizardService,
     private dialog: MatDialog,
@@ -143,8 +146,12 @@ export class ToolbarComponent implements OnInit, AfterViewInit, AfterContentChec
 
   /**
    * Logs out the authenticated user and redirects to login page.
+   * Stops session monitoring before logout.
    */
   logout() {
+    // Stop session monitoring before logout
+    this.sessionMonitorService.stopMonitoring();
+
     if (!environment.OIDC.oidcServerEnabled) {
       this.authenticationService.logout().subscribe(() => this.router.navigate(['/login'], { replaceUrl: true }));
     } else {

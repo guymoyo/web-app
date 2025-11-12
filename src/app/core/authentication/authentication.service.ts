@@ -12,6 +12,9 @@ import { AlertService } from '../alert/alert.service';
 /** Custom Interceptors */
 import { AuthenticationInterceptor } from './authentication.interceptor';
 
+/** Custom Services */
+import { SessionMonitorService } from './session-monitor.service';
+
 /** Environment Configuration */
 import { environment } from '../../../environments/environment';
 
@@ -61,11 +64,13 @@ export class AuthenticationService {
    * @param {HttpClient} http Http Client to send requests.
    * @param {AlertService} alertService Alert Service.
    * @param {AuthenticationInterceptor} authenticationInterceptor Authentication Interceptor.
+   * @param {SessionMonitorService} sessionMonitorService Session Monitor Service.
    */
   constructor(
     private http: HttpClient,
     private alertService: AlertService,
-    private authenticationInterceptor: AuthenticationInterceptor
+    private authenticationInterceptor: AuthenticationInterceptor,
+    private sessionMonitorService: SessionMonitorService
   ) {
     // Authentication is handled by nginx + oauth2-proxy
     // User is always authenticated when they reach this application
@@ -76,6 +81,10 @@ export class AuthenticationService {
 
     // Initialize mock credentials from headers if needed
     this.initializeFromProxyHeaders();
+
+    // Start session monitoring (without idle timeout by default)
+    // Idle timeout can be enabled by passing true
+    this.sessionMonitorService.startMonitoring(false);
   }
 
   /**

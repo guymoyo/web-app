@@ -14,6 +14,7 @@ import { AuthenticationInterceptor } from './authentication.interceptor';
 
 /** Custom Services */
 import { SessionMonitorService } from './session-monitor.service';
+import { RolePermissionMapperService } from './role-permission-mapper.service';
 
 /** Environment Configuration */
 import { environment } from '../../../environments/environment';
@@ -65,12 +66,14 @@ export class AuthenticationService {
    * @param {AlertService} alertService Alert Service.
    * @param {AuthenticationInterceptor} authenticationInterceptor Authentication Interceptor.
    * @param {SessionMonitorService} sessionMonitorService Session Monitor Service.
+   * @param {RolePermissionMapperService} rolePermissionMapper Role Permission Mapper Service.
    */
   constructor(
     private http: HttpClient,
     private alertService: AlertService,
     private authenticationInterceptor: AuthenticationInterceptor,
-    private sessionMonitorService: SessionMonitorService
+    private sessionMonitorService: SessionMonitorService,
+    private rolePermissionMapper: RolePermissionMapperService
   ) {
     // Authentication is handled by nginx + oauth2-proxy
     // User is always authenticated when they reach this application
@@ -122,10 +125,31 @@ export class AuthenticationService {
   public fetchUserDetails(): Observable<Credentials> {
     return this.http.get<Credentials>(`${environment.serverUrl}/userdetails`).pipe(
       map((credentials: Credentials) => {
-        // Store the real credentials with permissions
+        console.log('[AuthenticationService] Received credentials from /userdetails:', credentials);
+
+        // Map Keycloak roles to Fineract permissions
+        if (credentials.roles && Array.isArray(credentials.roles) && credentials.roles.length > 0) {
+          console.log('[AuthenticationService] Mapping roles to permissions:', credentials.roles);
+
+          // Extract role names and map to Fineract permissions
+          const mappedPermissions = this.rolePermissionMapper.mapRolesToPermissions(credentials.roles);
+
+          // Replace OAuth2 scopes with actual Fineract permissions
+          // The backend currently returns OAuth2 scopes (SCOPE_openid, etc.) instead of Fineract permissions
+          credentials.permissions = mappedPermissions;
+
+          console.log('[AuthenticationService] Mapped permissions:', credentials.permissions);
+        } else {
+          console.warn('[AuthenticationService] No roles found in credentials. User will have no permissions.');
+          credentials.permissions = [];
+        }
+
+        // Store the enhanced credentials with mapped permissions
         this.storage.setItem(this.credentialsStorageKey, JSON.stringify(credentials));
         this.userLoggedIn = true;
         this.userLoggedIn$.next(true);
+
+        console.log('[AuthenticationService] Stored credentials:', credentials);
         return credentials;
       })
     );

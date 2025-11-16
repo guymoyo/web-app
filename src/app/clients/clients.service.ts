@@ -411,24 +411,26 @@ export class ClientsService {
   }
 
   searchByText(text: string, page: number, pageSize: number, sortAttribute: string = '', sortDirection: string = '') {
-    let request: any = {
-      request: {
-        text
-      },
-      page,
-      size: pageSize
-    };
+    // Use v1 API GET endpoint instead of v2 POST to maintain consistency with app configuration
+    // The v2 POST endpoint returns 405 Method Not Allowed
+    let httpParams = new HttpParams()
+      .set('displayName', text)
+      .set('offset', (page * pageSize).toString())
+      .set('limit', pageSize.toString());
+
     if (sortAttribute !== '' && sortDirection !== '') {
-      request = {
-        ...request,
-        sorts: [
-          {
-            direction: sortDirection,
-            property: sortAttribute
-          }
-        ]
-      };
+      httpParams = httpParams.set('orderBy', sortAttribute).set('sortOrder', sortDirection);
     }
-    return this.http.post(`/v2/clients/search`, request);
+
+    // Transform v1 response format to match v2 paginated format expected by component
+    return this.http.get(`/clients`, { params: httpParams }).pipe(
+      map((response: any) => {
+        return {
+          content: response.pageItems || [],
+          totalElements: response.totalFilteredRecords || 0,
+          numberOfElements: response.pageItems?.length || 0
+        };
+      })
+    );
   }
 }
